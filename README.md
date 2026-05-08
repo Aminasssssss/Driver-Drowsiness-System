@@ -2,7 +2,7 @@
 
 Real-time driver drowsiness detection system using computer vision, served as a REST API with a live web dashboard and MLOps experiment tracking.
 
-![CI](https://github.com/ТУТ_ТВОЙ_GITHUB_НИК/driver-ai-guard/actions/workflows/ci.yml/badge.svg)
+![CI](https://github.com/Aminasssssss/Driver-Drowsiness-System/actions/workflows/ci.yml/badge.svg)
 
 ## Overview
 
@@ -14,29 +14,43 @@ The system monitors a driver's face through a webcam and detects:
 When any threshold is exceeded for a sustained number of frames, a visual alert is triggered.
 
 ## Architecture
-driver-ai-guard/
+
+```
+Driver-Drowsiness-System/
+├── .github/
+│   └── workflows/
+│       └── ci.yml              # GitHub Actions — runs tests on every push
 ├── app/
 │   ├── core/
-│   │   ├── config.py       # Centralized settings (pydantic-settings)
-│   │   ├── engine.py       # Main VisionSystem — frame processing pipeline
-│   │   ├── physics.py      # Stateless EAR/MAR calculations
-│   │   ├── pose.py         # Head pose estimation (PnP solver)
-│   │   ├── visualizer.py   # HUD rendering
-│   │   └── logger.py       # MLflow experiment tracker
-│   ├── server.py           # FastAPI REST API
-│   └── web_ui.py           # Streamlit WebRTC dashboard
+│   │   ├── config.py           # Centralized settings (pydantic-settings + .env)
+│   │   ├── engine.py           # Main VisionSystem — frame processing pipeline
+│   │   ├── physics.py          # Stateless EAR/MAR calculations
+│   │   ├── pose.py             # Head pose estimation (OpenCV SolvePnP)
+│   │   ├── visualizer.py       # HUD rendering (landmarks, telemetry, alerts)
+│   │   └── logger.py           # MLflow experiment tracker
+│   ├── server.py               # FastAPI REST API
+│   └── web_ui.py               # Streamlit WebRTC dashboard
 ├── tests/
 │   ├── conftest.py
 │   ├── test_physics.py
 │   └── test_engine.py
-├── models/                 # Place .dat model file here (see Setup)
+├── models/                     # Place .dat model file here (see Setup)
 ├── docker-compose.yml
 ├── Dockerfile
-└── pyproject.toml
+├── Makefile
+├── pyproject.toml
+└── requirements.txt
+```
 
 ## Quick Start
 
 ### 1. Download the face landmark model
+
+```bash
+make download-model
+```
+
+Or manually:
 
 ```bash
 wget http://dlib.net/files/shape_predictor_68_face_landmarks.dat.bz2
@@ -47,7 +61,8 @@ mv shape_predictor_68_face_landmarks.dat models/
 ### 2. Run with Docker (recommended)
 
 ```bash
-docker-compose up --build
+make build
+make up
 ```
 
 | Service | URL |
@@ -66,13 +81,18 @@ python main.py --model models/shape_predictor_68_face_landmarks.dat
 ## How It Works
 
 **EAR (Eye Aspect Ratio)**
+
+```
 EAR = (|p2-p6| + |p3-p5|) / (2 * |p1-p4|)
+```
 
-When drowsy, EAR stays consistently low. The system counts consecutive frames below the threshold and triggers an alert after `persistence_frames` frames.
+When drowsy, EAR stays consistently low across frames. The system counts consecutive frames below the threshold and triggers an alert after `persistence_frames` frames.
 
-**MAR (Mouth Aspect Ratio)** — same principle applied to inner lip landmarks (points 60–67) to detect yawning.
+**MAR (Mouth Aspect Ratio)** — same Euclidean distance principle applied to inner lip landmarks (points 60–67 in the 68-point dlib model) to detect yawning.
 
-**Pitch (Head Pose)** — uses OpenCV `solvePnP` to compute the vertical tilt angle of the head. A pitch below `-15°` indicates the head is dropping, which is a strong drowsiness signal independent of eye state.
+**Pitch (Head Pose)** — uses OpenCV `solvePnP` to compute the vertical tilt angle of the head. A pitch below `-15°` indicates the head is dropping — a strong drowsiness signal independent of eye state.
+
+All three signals feed into a single `drowsy_counter` with hysteresis to avoid false positives from single-frame noise.
 
 ## Configuration
 
@@ -90,6 +110,12 @@ MLFLOW_TRACKING_URI=file:./mlruns
 ## Testing
 
 ```bash
+make test
+```
+
+Or directly:
+
+```bash
 pytest --cov=app
 ```
 
@@ -97,6 +123,7 @@ pytest --cov=app
 
 `POST /analyze`
 
+Request:
 ```json
 {
   "image_base64": "<base64 encoded JPEG/PNG frame>"
@@ -116,12 +143,21 @@ Response:
 }
 ```
 
+`GET /health`
+
+```json
+{ "status": "ok" }
+```
+
 ## Tech Stack
 
-- **CV**: OpenCV, dlib (68-point facial landmarks)
-- **API**: FastAPI + Uvicorn
-- **UI**: Streamlit + streamlit-webrtc
-- **MLOps**: MLflow
-- **Containerization**: Docker + docker-compose
-- **Testing**: pytest + pytest-cov
-- **CI**: GitHub Actions
+| Layer | Technology |
+|-------|-----------|
+| Computer Vision | OpenCV, dlib (68-point landmarks) |
+| API | FastAPI + Uvicorn |
+| UI | Streamlit + streamlit-webrtc |
+| MLOps | MLflow |
+| Containerization | Docker + docker-compose |
+| Testing | pytest + pytest-cov |
+| CI | GitHub Actions |
+| Config | pydantic-settings |
