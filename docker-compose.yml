@@ -1,0 +1,37 @@
+version: '3.8'
+
+services:
+  api:
+    build: .
+    container_name: drowsiness_api
+    command: uvicorn app.server:app --host 0.0.0.0 --port 8000
+    ports:
+      - "8000:8000"
+    volumes:
+      - ./models:/app/models
+      - ./mlruns:/app/mlruns
+    env_file:
+      - .env
+    restart: unless-stopped
+
+  dashboard:
+    build: .
+    container_name: drowsiness_ui
+    command: streamlit run app/web_ui.py --server.port 8501 --server.address 0.0.0.0
+    ports:
+      - "8501:8501"
+    depends_on:
+      - api
+    env_file:
+      - .env
+    restart: unless-stopped
+
+  mlflow:
+    image: ghcr.io/mlflow/mlflow
+    container_name: mlflow_tracker
+    ports:
+      - "5000:5000"
+    volumes:
+      - ./mlruns:/mlruns
+    command: mlflow ui --host 0.0.0.0
+    restart: unless-stopped
